@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Journey Deck – Random Card Drawer</title>
+  <style>
+    body { font-family: sans-serif; background: #f9f9f9; margin: 0; padding: 2rem; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    p { color: #555; }
+    select, button { padding: 0.6rem 1rem; font-size: 1rem; }
+    .controls { display: flex; gap: 1rem; margin: 1rem 0; flex-wrap: wrap; }
+    .card-area { border: 2px solid #ccc; background: white; border-radius: 12px; padding: 1rem; display: flex; justify-content: center; align-items: center; min-height: 400px; }
+    .card-area img { max-height: 380px; max-width: 100%; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+    .dice-area { margin-bottom: 1.5rem; padding: 1rem; border: 2px dashed #bbb; border-radius: 12px; background: #fff; text-align: center; }
+    .dice-result { font-size: 3rem; margin-top: 0.5rem; }
+    .keep-controls { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .panel { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 1rem; }
+    .kept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .thumb { position: relative; border: 1px solid #e5e5e5; border-radius: 10px; padding: 8px; background: #fafafa; }
+    .thumb img { width: 100%; height: 120px; object-fit: contain; background: #fff; border-radius: 6px; }
+    .thumb .check { position: absolute; top: 8px; left: 8px; transform: scale(1.2); }
+    .thumb .caption { font-size: 12px; color: #666; margin-top: 4px; text-align: center; }
+    .row { display:flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Journey Deck – Random Card Drawer</h1>
+
+    <div class="dice-area">
+      <h2>🎲 Dice Throw</h2>
+      <button id="throwDice">Roll Dice</button>
+      <div class="dice-result" id="diceResult">–</div>
+    </div>
+
+    <p>Choose a deck and draw. Each card is shown using your exported PowerPoint slide images.</p>
+
+    <label for="deck">Deck</label>
+    <select id="deck"></select>
+
+    <div class="controls">
+      <button id="draw">🎴 Draw random</button>
+      <button id="reshuffle">🔄 Reshuffle</button>
+      <button id="keepCard">📌 Keep this card</button>
+      <button id="toggleKept">🗂️ Manage kept cards</button>
+    </div>
+
+    <div class="card-area" id="cardArea">Click <strong>Draw random</strong> to reveal a card.</div>
+
+    <div id="keptPanel" class="panel" style="display:none; margin-top: 16px;">
+      <div class="row" style="justify-content: space-between;">
+        <strong>Kept cards</strong>
+        <div class="row">
+          <button id="selectAll">Select all</button>
+          <button id="clearSelection">Clear selection</button>
+          <button id="discardSelected" style="background:#fff;border:1px solid #d00;color:#d00;">🗑️ Discard selected</button>
+          <button id="discardAll" style="background:#fff;border:1px solid #d00;color:#d00;">🗑️ Discard all</button>
+        </div>
+      </div>
+      <div id="keptGrid" class="kept-grid" style="margin-top: 10px;"></div>
+    </div>
+
+    <p style="font-size: 0.85rem; color: #888; margin-top:1rem;">Tip: Export slides as PNG from PowerPoint and put them into folders like <code>cards/stoic/stoic-1.png</code>. Adjust paths in the script if your naming differs.</p>
+  </div>
+
+  <script>
+    const DECKS = {
+      "Stoic Calm (Blue)": ["cards/stoic/stoic-1.png","cards/stoic/stoic-2.png","cards/stoic/stoic-3.png","cards/stoic/stoic-4.png","cards/stoic/stoic-5.png","cards/stoic/stoic-6.png","cards/stoic/stoic-7.png"],
+      "Career Growth (Yellow)": ["cards/career/career-1.png","cards/career/career-2.png","cards/career/career-3.png","cards/career/career-4.png","cards/career/career-5.png","cards/career/career-6.png","cards/career/career-7.png"],
+      "Collaboration & Community (Pink)": ["cards/collab/collab-1.png","cards/collab/collab-2.png","cards/collab/collab-3.png","cards/collab/collab-4.png","cards/collab/collab-5.png","cards/collab/collab-6.png","cards/collab/collab-7.png"],
+      "Creativity & Curiosity (Cyan)": ["cards/creativity/creativity-1.png","cards/creativity/creativity-2.png","cards/creativity/creativity-3.png","cards/creativity/creativity-4.png","cards/creativity/creativity-5.png","cards/creativity/creativity-6.png","cards/creativity/creativity-7.png"],
+      "Resilience & Growth (Purple)": ["cards/resilience/resilience-1.png","cards/resilience/resilience-2.png","cards/resilience/resilience-3.png","cards/resilience/resilience-4.png","cards/resilience/resilience-5.png","cards/resilience/resilience-6.png","cards/resilience/resilience-7.png"],
+      "Values & Ethics (Green)": ["cards/ethics/ethics-1.png","cards/ethics/ethics-2.png","cards/ethics/ethics-3.png","cards/ethics/ethics-4.png","cards/ethics/ethics-5.png","cards/ethics/ethics-6.png","cards/ethics/ethics-7.png"],
+      "Self-Knowledge (Mauve)": ["cards/self/self-1.png","cards/self/self-2.png","cards/self/self-3.png","cards/self/self-4.png","cards/self/self-5.png","cards/self/self-6.png","cards/self/self-7.png"],
+      "Challenges (Red)": ["cards/challenges/ch-1.png","cards/challenges/ch-2.png","cards/challenges/ch-3.png","cards/challenges/ch-4.png","cards/challenges/ch-5.png","cards/challenges/ch-6.png","cards/challenges/ch-7.png"]
+    };
+
+    const deckSelect = document.getElementById("deck");
+    const cardArea = document.getElementById("cardArea");
+    const drawBtn = document.getElementById("draw");
+    const reshuffleBtn = document.getElementById("reshuffle");
+    const diceBtn = document.getElementById("throwDice");
+    const diceResult = document.getElementById("diceResult");
+    const keepBtn = document.getElementById("keepCard");
+    const toggleKeptBtn = document.getElementById("toggleKept");
+    const keptPanel = document.getElementById("keptPanel");
+    const keptGrid = document.getElementById("keptGrid");
+    const selectAllBtn = document.getElementById("selectAll");
+    const clearSelectionBtn = document.getElementById("clearSelection");
+    const discardSelectedBtn = document.getElementById("discardSelected");
+    const discardAllBtn = document.getElementById("discardAll");
+
+    // populate select
+    Object.keys(DECKS).forEach(deck => {
+      const opt = document.createElement("option");
+      opt.value = deck;
+      opt.textContent = deck;
+      deckSelect.appendChild(opt);
+    });
+
+    let currentDeck = Object.keys(DECKS)[0];
+    let shuffled = [];
+    let index = -1;
+
+    // kept cards (unlimited)
+    let kept = []; // array of { src, deck }
+
+    function shuffleDeck(deck) {
+      const arr = [...DECKS[deck]];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function showCard() {
+      if (index < 0) {
+        cardArea.innerHTML = "Click <strong>Draw random</strong> to reveal a card.";
+        return;
+      }
+      const img = document.createElement("img");
+      img.src = shuffled[index];
+      img.alt = currentDeck + " card";
+      cardArea.innerHTML = "";
+      cardArea.appendChild(img);
+    }
+
+    function renderKept() {
+      keptGrid.innerHTML = "";
+      if (!kept.length) {
+        keptGrid.innerHTML = '<div style="grid-column:1/-1; color:#777;">No kept cards yet. Keep any drawn card with the <strong>📌 Keep this card</strong> button.</div>';
+        return;
+      }
+      kept.forEach((item, i) => {
+        const cell = document.createElement("div");
+        cell.className = "thumb";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.className = "check";
+        cb.dataset.index = String(i);
+        const img = document.createElement("img");
+        img.src = item.src;
+        img.alt = item.deck + ' kept card';
+        const cap = document.createElement("div");
+        cap.className = "caption";
+        cap.textContent = item.deck;
+        cell.appendChild(cb);
+        cell.appendChild(img);
+        cell.appendChild(cap);
+        keptGrid.appendChild(cell);
+      });
+    }
+
+    drawBtn.addEventListener("click", () => {
+      if (index < 0 || index >= shuffled.length - 1) {
+        shuffled = shuffleDeck(currentDeck);
+        index = 0;
+      } else {
+        index++;
+      }
+      showCard();
+    });
+
+    reshuffleBtn.addEventListener("click", () => {
+      shuffled = shuffleDeck(currentDeck);
+      index = -1;
+      showCard();
+    });
+
+    deckSelect.addEventListener("change", e => {
+      currentDeck = e.target.value;
+      shuffled = shuffleDeck(currentDeck);
+      index = -1;
+      showCard();
+    });
+
+    keepBtn.addEventListener("click", () => {
+      if (index < 0) return; // nothing to keep yet
+      kept.push({ src: shuffled[index], deck: currentDeck });
+      // open panel after keeping for quick feedback
+      keptPanel.style.display = "block";
+      renderKept();
+    });
+
+    toggleKeptBtn.addEventListener("click", () => {
+      const isOpen = keptPanel.style.display !== "none";
+      keptPanel.style.display = isOpen ? "none" : "block";
+      if (!isOpen) renderKept();
+    });
+
+    selectAllBtn.addEventListener("click", () => {
+      keptGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+    });
+
+    clearSelectionBtn.addEventListener("click", () => {
+      keptGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    });
+
+    discardSelectedBtn.addEventListener("click", () => {
+      const toRemove = new Set();
+      keptGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        if (cb.checked) toRemove.add(Number(cb.dataset.index));
+      });
+      if (!toRemove.size) return;
+      kept = kept.filter((_, i) => !toRemove.has(i));
+      renderKept();
+    });
+
+    discardAllBtn.addEventListener("click", () => {
+      if (!kept.length) return;
+      if (!confirm('Discard ALL kept cards?')) return;
+      kept = [];
+      renderKept();
+    });
+
+    // dice roll with visual unicode faces
+    const diceFaces = ["⚀","⚁","⚂","⚃","⚄","⚅"];
+    const diceBtnEl = document.getElementById("throwDice");
+    diceBtnEl.addEventListener("click", () => {
+      const roll = Math.floor(Math.random() * 6);
+      diceResult.textContent = diceFaces[roll] + `  (You rolled a ${roll+1})`;
+    });
+
+    // init first deck
+    shuffled = shuffleDeck(currentDeck);
+    showCard();
+  </script>
+</body>
+</html>
